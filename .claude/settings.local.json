@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Read(///wsl.localhost/Ubuntu/home/mz/**)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "WebFetch(domain:www.tavirekini.lv)",
+      "Bash(npx prisma:*)",
+      "Bash(wsl -d Ubuntu -- bash -c \"cd /home/mz/schedule-manager && npx tsc --noEmit 2>&1 | head -15\")"
+    ]
+  }
+}
