@@ -55,6 +55,28 @@ async function main() {
     },
   });
 
+  await prisma.user.create({
+    data: {
+      email: 'employee2@example.com',
+      password: hashedPassword,
+      firstName: 'Linda',
+      lastName: 'Berzina',
+      role: Role.EMPLOYEE,
+      storeId: store1.id,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      email: 'employee3@example.com',
+      password: hashedPassword,
+      firstName: 'Mark',
+      lastName: 'Ozolins',
+      role: Role.EMPLOYEE,
+      storeId: store1.id,
+    },
+  });
+
   console.log('Seed data created successfully');
 }
 

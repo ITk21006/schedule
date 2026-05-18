@@ -7,6 +7,8 @@ import {
   LEAVE_TYPES, LEAVE_HOURS, MONTHLY_WORK_HOURS,
   getLeaveTypeByLabel, getCellColor, getCellBgColor, DAY_NAMES,
 } from '~/lib/schedule-constants';
+import { useT, useLang, dayNamesFor, localeFor } from '~/lib/i18n';
+import { LanguageToggle } from '~/components/LanguageToggle';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
@@ -128,7 +130,7 @@ export async function action({ request }: ActionFunctionArgs) {
   return redirect('/approvals');
 }
 
-function ApprovalGrid({ schedule }: { schedule: any }) {
+function ApprovalGrid({ schedule, t, lang }: { schedule: any; t: (k: string, p?: any) => string; lang: 'en' | 'lv' }) {
   const weekStart = new Date(schedule.weekStart);
   const year = weekStart.getFullYear();
   const month = weekStart.getMonth();
@@ -194,19 +196,22 @@ function ApprovalGrid({ schedule }: { schedule: any }) {
     return working;
   };
 
+  const dayNames = dayNamesFor(lang);
+  const locale = localeFor(lang);
+
   return (
     <div>
       <div className="mb-3 text-sm text-gray-600">
-        <span><strong>Store:</strong> {schedule.store.name}</span>
-        <span className="ml-4"><strong>Created by:</strong> {schedule.createdBy.firstName} {schedule.createdBy.lastName}</span>
+        <span><strong>{t('common.store')}:</strong> {schedule.store.name}</span>
+        <span className="ml-4"><strong>{t('common.createdBy')}:</strong> {schedule.createdBy.firstName} {schedule.createdBy.lastName}</span>
         {monthNormHours > 0 && (
-          <span className="ml-4"><strong>Monthly norm:</strong> {monthNormHours}h</span>
+          <span className="ml-4"><strong>{t('common.monthlyNorm')}:</strong> {monthNormHours}h</span>
         )}
       </div>
 
       {schedule.notes && (
         <div className="mb-3 p-3 bg-gray-50 rounded text-sm text-gray-600">
-          <strong>Notes:</strong> {schedule.notes}
+          <strong>{t('common.notes')}:</strong> {schedule.notes}
         </div>
       )}
 
@@ -222,18 +227,18 @@ function ApprovalGrid({ schedule }: { schedule: any }) {
         <table className="border-collapse" style={{ fontSize: '12px', minWidth: '100%' }}>
           <thead>
             <tr>
-              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>Vārds</td>
-              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>Uzvārds</td>
-              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>P.k.</td>
+              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>{t('common.firstName')}</td>
+              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>{t('common.lastName')}</td>
+              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>{t('common.username')}</td>
               <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" colSpan={monthDates.length}>
-                Period: {monthDates[0]?.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                {t('common.period')}: {monthDates[0]?.toLocaleDateString(locale, { year: 'numeric', month: 'long' })}
               </td>
-              <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" rowSpan={3}>Total</td>
+              <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" rowSpan={3}>{t('common.total')}</td>
             </tr>
             <tr>
               {monthDates.map((date, idx) => (
                 <td key={idx} className="border border-gray-300 px-1 py-1 text-center text-xs" style={{ backgroundColor: getCellBgColor(date) }}>
-                  {DAY_NAMES[date.getDay()]}
+                  {dayNames[date.getDay()]}
                 </td>
               ))}
             </tr>
@@ -291,7 +296,7 @@ function ApprovalGrid({ schedule }: { schedule: any }) {
             })}
 
             <tr className="bg-gray-100 font-semibold">
-              <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">Total hours in day:</td>
+              <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">{t('common.totalHoursInDay')}</td>
               {monthDates.map((_, idx) => {
                 const total = calcDayTotals(idx + 1);
                 return (
@@ -313,29 +318,32 @@ function ApprovalGrid({ schedule }: { schedule: any }) {
 
 export default function Approvals() {
   const { user, pendingSchedules } = useLoaderData<typeof loader>();
-  const actionData = (typeof window !== 'undefined' ? undefined : null) as any;
+  const t = useT();
+  const lang = useLang();
+  const locale = localeFor(lang);
 
   const formatTimestamp = (dateStr: string) => {
     const d = new Date(dateStr);
-    return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+    return `${d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })} ${d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ overflowX: 'hidden' }}>
       <header className="bdheader">
-        <div className="bdlogo">
-          <span className="text-white text-xl font-bold">Schedule Manager</span>
+        <div className="bdlogo" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <LanguageToggle />
+          <span className="text-white text-xl font-bold">{t('common.appTitle')}</span>
         </div>
         <div className="userNameContainer">
           <span className="userName">{user.firstName} {user.lastName}</span>
-          <span className="text-white text-sm">({user.role})</span>
+          <span className="text-white text-sm">({t(`role.${user.role}`)})</span>
           <Form method="post" action="/logout">
             <button
               type="submit"
               className="ml-4 px-3 py-1 bg-white text-sm rounded hover:bg-gray-100"
               style={{ color: 'var(--primary-color)' }}
             >
-              Logout
+              {t('common.logout')}
             </button>
           </Form>
         </div>
@@ -344,11 +352,11 @@ export default function Approvals() {
       <main className="p-6">
         <div style={{ maxWidth: '100%', overflow: 'hidden' }}>
           <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--primary-color)' }}>
-            Pending Approvals
+            {t('approvals.heading')}
           </h2>
 
           {pendingSchedules.length === 0 ? (
-            <p className="text-gray-500 text-center">No pending approvals</p>
+            <p className="text-gray-500 text-center">{t('approvals.empty')}</p>
           ) : (
             <div className="space-y-8">
               {pendingSchedules.map((schedule: any) => {
@@ -359,21 +367,21 @@ export default function Approvals() {
                   <div key={schedule.id} className="bg-white rounded-lg shadow-md p-6">
                     <div className="flex justify-between items-start mb-4">
                       <h3 className="text-lg font-semibold">
-                        {new Date(schedule.weekStart).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                        {new Date(schedule.weekStart).toLocaleDateString(locale, { year: 'numeric', month: 'long' })}
                       </h3>
                       <div className="text-right">
                         <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>
-                          PENDING
+                          {t('status.PENDING')}
                         </span>
                         {submittedAt && (
                           <div className="text-xs text-gray-500 mt-1">
-                            Submitted: {submittedAt}
+                            {t('common.submitted')}: {submittedAt}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <ApprovalGrid schedule={schedule} />
+                    <ApprovalGrid schedule={schedule} t={t} lang={lang} />
 
                     <Form
                       method="post"
@@ -385,7 +393,7 @@ export default function Approvals() {
                           const comment = formData.get('comment')?.toString().trim();
                           if (!comment) {
                             e.preventDefault();
-                            alert('A comment is required when rejecting a schedule.');
+                            alert(t('approvals.commentMandatory'));
                           }
                         }
                       }}
@@ -394,14 +402,14 @@ export default function Approvals() {
 
                       <div>
                         <label htmlFor={`comment-${schedule.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                          Comment <span className="text-gray-400">(required for rejection)</span>
+                          {t('approvals.commentLabel')} <span className="text-gray-400">{t('approvals.commentRequired')}</span>
                         </label>
                         <textarea
                           id={`comment-${schedule.id}`}
                           name="comment"
                           rows={2}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Add a comment..."
+                          placeholder={t('approvals.commentPlaceholder')}
                         />
                       </div>
 
@@ -412,7 +420,7 @@ export default function Approvals() {
                           value="approve"
                           style={{ backgroundColor: '#16a34a', color: '#fff', padding: '8px 16px', borderRadius: '6px', fontWeight: 500, border: 'none', cursor: 'pointer' }}
                         >
-                          Accept Schedule
+                          {t('approvals.accept')}
                         </button>
                         <button
                           type="submit"
@@ -420,7 +428,7 @@ export default function Approvals() {
                           value="reject"
                           style={{ backgroundColor: '#ef4444', color: '#fff', padding: '8px 16px', borderRadius: '6px', fontWeight: 500, border: 'none', cursor: 'pointer' }}
                         >
-                          Reject
+                          {t('approvals.reject')}
                         </button>
                       </div>
                     </Form>

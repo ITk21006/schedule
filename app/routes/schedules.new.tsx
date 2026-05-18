@@ -3,81 +3,17 @@ import { Form, useLoaderData } from 'react-router';
 import { requireUserId } from '~/lib/session.server';
 import { getCurrentUser } from '~/lib/auth.server';
 import { prisma } from '~/lib/db.server';
+import {
+  LEAVE_TYPES, LEAVE_HOURS, MONTHLY_WORK_HOURS,
+  getLeaveTypeByCode, getCellBgColor, DAY_NAMES,
+} from '~/lib/schedule-constants';
+import {
+  autoFillSchedule, autofillSummaryMessage,
+  type ShiftData,
+} from '~/lib/autofill';
+import { useT, useLang, dayNamesFor, localeFor } from '~/lib/i18n';
+import { LanguageToggle } from '~/components/LanguageToggle';
 import { useState, useMemo } from 'react';
-
-type ShiftData = { start: string; hours: string; leave: string };
-
-const LEAVE_HOURS = 8; // Each leave mark counts as 8 working hours
-
-const LEAVE_TYPES: { code: string; label: string; bg: string; color: string }[] = [
-  { code: 'A',  label: 'Atvaļinājums',                  bg: '#fef3c7', color: '#92400e' },
-  { code: 'SA', label: 'Slimības lapa A',                bg: '#a8d5a2', color: '#1a5c14' },
-  { code: 'SB', label: 'Slimības lapa B',                bg: '#bfdbfe', color: '#1e40af' },
-  { code: 'TA', label: 'Tēva atvaļinājums',              bg: '#fef3c7', color: '#92400e' },
-  { code: 'PA', label: 'Papildatvaļinājums',             bg: '#fef3c7', color: '#92400e' },
-  { code: 'O',  label: 'Bērna kopšanas atvaļinājums',    bg: '#fef3c7', color: '#92400e' },
-  { code: 'X',  label: 'Nav uzsāktas vai beigušās darba attiecības', bg: '#ffffff', color: '#333' },
-];
-
-function getLeaveType(code: string) {
-  return LEAVE_TYPES.find(l => l.code === code);
-}
-
-// 2026 Latvia monthly working hours norm (from tavirekini.lv)
-const MONTHLY_WORK_HOURS: { [key: string]: number } = {
-  '2026-01': 168,
-  '2026-02': 160,
-  '2026-03': 176,
-  '2026-04': 158,
-  '2026-05': 152,
-  '2026-06': 159,
-  '2026-07': 184,
-  '2026-08': 168,
-  '2026-09': 176,
-  '2026-10': 176,
-  '2026-11': 159,
-  '2026-12': 158,
-};
-
-// 2026 Latvia public holidays (month-day format, 0-indexed month)
-// Source: tavirekini.lv
-const HOLIDAYS_2026: string[] = [
-  '2026-01-01', // New Year's Day
-  '2026-04-03', // Good Friday
-  '2026-04-05', // Easter Sunday
-  '2026-04-06', // Easter Monday
-  '2026-05-01', // Labour Day
-  '2026-05-04', // Independence Declaration Day
-  '2026-06-23', // Līgo (Midsummer Eve)
-  '2026-06-24', // Jāņi (Midsummer Day)
-  '2026-11-18', // Republic Proclamation Day
-  '2026-12-24', // Christmas Eve
-  '2026-12-25', // Christmas Day
-  '2026-12-26', // Boxing Day
-  '2026-12-31', // New Year's Eve
-];
-
-// Pre-holiday shortened days (7h instead of 8h)
-const PRE_HOLIDAY_DAYS: string[] = [
-  '2026-04-02',
-  '2026-04-30',
-  '2026-06-22',
-  '2026-11-17',
-  '2026-12-23',
-  '2026-12-30',
-];
-
-function dateToKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function isHoliday(date: Date): boolean {
-  return HOLIDAYS_2026.includes(dateToKey(date));
-}
-
-function isPreHoliday(date: Date): boolean {
-  return PRE_HOLIDAY_DAYS.includes(dateToKey(date));
-}
 
 const END_LIMIT = 21 * 60; // 21:00 in minutes
 
@@ -274,6 +210,10 @@ export async function action({ request }: ActionFunctionArgs) {
 
 export default function NewSchedule() {
   const { user, employees } = useLoaderData<typeof loader>();
+  const t = useT();
+  const lang = useLang();
+  const locale = localeFor(lang);
+  const dayNames = dayNamesFor(lang);
   
   // Set default to current month
   const now = new Date();
@@ -311,7 +251,6 @@ export default function NewSchedule() {
   };
 
   const monthDates = getDaysInMonth();
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const handleShiftStart = (empId: string, day: number, start: string) => {
     const key = `${empId}_${day}`;
@@ -378,23 +317,17 @@ export default function NewSchedule() {
     return { total: totalHours, working: workingHours };
   };
 
-  const getCellColor = (date: Date) => {
-    if (isHoliday(date)) return 'bg-red-100';
-    const day = date.getDay();
-    if (day === 0 || day === 6) return 'bg-blue-50';
-    return 'bg-gray-50';
-  };
-
-  const getCellBgColor = (date: Date): string => {
-    if (isHoliday(date)) return '#fee2e2';       // red-100
-    const day = date.getDay();
-    if (day === 6) return '#cbd5e1';              // slate-300 – Saturday
-    if (day === 0) return '#b0bec5';              // darker blue-gray – Sunday
-    return '#f9fafb';                             // gray-50 – weekday
-  };
-
   const monthOptions = getMonthOptions();
   const monthNormHours = MONTHLY_WORK_HOURS[monthYear] || 0;
+
+  // Greedy autofill — see app/lib/autofill.ts for the algorithm and rules.
+  // Passing the monthly norm caps each employee's hours so the autofill
+  // cannot push someone past the legal monthly working-hours limit.
+  const runAutoFill = () => {
+    const result = autoFillSchedule(shifts, monthDates, employees, monthNormHours);
+    setShifts(result.shifts);
+    window.alert(autofillSummaryMessage(result));
+  };
 
   // Validation: check each employee's working hours against the norm
   const employeeHourErrors = useMemo(() => {
@@ -403,36 +336,57 @@ export default function NewSchedule() {
     employees.forEach(emp => {
       const { working } = calculateEmployeeTotal(emp.id);
       if (working > 0 && working !== monthNormHours) {
-        if (working < monthNormHours) {
-          errors[emp.id] = `${working}h / ${monthNormHours}h (${monthNormHours - working}h short)`;
-        } else {
-          errors[emp.id] = `${working}h / ${monthNormHours}h (${working - monthNormHours}h over)`;
-        }
+        errors[emp.id] = working < monthNormHours
+          ? t('err.hoursShort', { w: working, n: monthNormHours, d: monthNormHours - working })
+          : t('err.hoursOver',  { w: working, n: monthNormHours, d: working - monthNormHours });
       }
     });
     return errors;
-  }, [shifts, monthNormHours, employees, monthDates]);
+  }, [shifts, monthNormHours, employees, monthDates, t]);
 
   const hasHourErrors = Object.keys(employeeHourErrors).length > 0;
   // Only employees who have at least some hours assigned count for validation
   const hasAnyAssignedShifts = employees.some(emp => calculateEmployeeTotal(emp.id).working > 0);
   const canSubmit = !hasHourErrors || !hasAnyAssignedShifts;
 
+  // Days that have shifts but nobody scheduled to work until 21:00 (closing).
+  // Non-blocking warning — the manager may have intentionally closed early,
+  // but in practice this almost always indicates a missed shift.
+  const closingCoverageWarnings = useMemo(() => {
+    const warnings: { day: number; date: Date }[] = [];
+    monthDates.forEach((date, idx) => {
+      const day = idx + 1;
+      let hasAnyShift = false;
+      let hasCloser = false;
+      employees.forEach(emp => {
+        const s = shifts[`${emp.id}_${day}`];
+        if (!s || s.leave) return;
+        if (s.start && s.hours) {
+          hasAnyShift = true;
+          if (calcEndTime(s.start, s.hours) === '21:00') hasCloser = true;
+        }
+      });
+      if (hasAnyShift && !hasCloser) warnings.push({ day, date });
+    });
+    return warnings;
+  }, [shifts, monthDates, employees]);
+
   return (
     <div className="min-h-screen bg-gray-50" style={{ overflowX: 'hidden' }}>
       <header className="bdheader">
-        <div className="bdlogo">
-          <span className="text-white text-xl font-bold">Schedule Manager</span>
+        <div className="bdlogo" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <LanguageToggle />
+          <span className="text-white text-xl font-bold">{t('common.appTitle')}</span>
         </div>
         <div className="userNameContainer">
           <span className="userName">{user.firstName} {user.lastName}</span>
           <Form method="post" action="/logout" style={{ display: 'inline' }}>
-            <button 
+            <button
               type="submit"
               className="ml-4 px-3 py-1 bg-white text-sm rounded hover:bg-gray-100"
               style={{ color: 'var(--primary-color)' }}
             >
-              Logout
+              {t('common.logout')}
             </button>
           </Form>
         </div>
@@ -441,14 +395,14 @@ export default function NewSchedule() {
       <main className="p-6">
         <div style={{ maxWidth: '100%', overflow: 'hidden' }}>
           <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--primary-color)' }}>
-            Create Monthly Schedule
+            {t('edit.createHeading')}
           </h2>
 
           <Form method="post" className="space-y-6">
             <div className="bg-white rounded-lg shadow p-6">
               <div className="mb-4">
                 <label htmlFor="monthYear" className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Month
+                  {t('edit.selectMonth')}
                 </label>
                 <select
                   id="monthYear"
@@ -467,12 +421,7 @@ export default function NewSchedule() {
               </div>
 
               <div className="mb-4 p-4 bg-gray-50 rounded">
-                <h3 className="font-semibold mb-2">How to fill:</h3>
                 <div className="text-sm space-y-1">
-                  <p>• Select <strong>shift start</strong> time and <strong>working hours</strong> from dropdowns</p>
-                  <p>• Or select a <strong>leave type</strong> from the top dropdown (counts as {LEAVE_HOURS}h)</p>
-                  <p>• End time is calculated automatically (adds 1h lunch if &gt;6h working)</p>
-                  <p>• Leave all dropdowns empty for day off</p>
                   <div className="mt-2" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {LEAVE_TYPES.map(lt => (
                       <span key={lt.code} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold" style={{ backgroundColor: lt.bg, color: lt.color, border: lt.code === 'X' ? '1px solid #d1d5db' : 'none', width: 'fit-content' }}>
@@ -480,10 +429,24 @@ export default function NewSchedule() {
                       </span>
                     ))}
                   </div>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ok = window.confirm(t('edit.autofillConfirm'));
+                        if (ok) runAutoFill();
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-white rounded-md hover:opacity-90"
+                      style={{ backgroundColor: 'var(--primary-color)' }}
+                      title={t('edit.autofillTooltip')}
+                    >
+                      {t('edit.autofillButton')}
+                    </button>
+                  </div>
                 </div>
                 {monthNormHours > 0 && (
                   <div className="mt-2 text-sm font-medium">
-                    Monthly norm: <strong>{monthNormHours}h</strong> working hours per employee
+                    {t('edit.monthlyNormDetail', { h: monthNormHours })}
                   </div>
                 )}
               </div>
@@ -494,22 +457,22 @@ export default function NewSchedule() {
                     {/* Period row */}
                     <tr>
                       <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>
-                        Vārds
+                        {t('common.firstName')}
                       </td>
                       <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>
-                        Uzvārds
+                        {t('common.lastName')}
                       </td>
                       <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>
-                        P.k.
+                        {t('common.username')}
                       </td>
                       <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" colSpan={monthDates.length}>
-                        Period: {monthDates[0]?.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                        {t('common.period')}: {monthDates[0]?.toLocaleDateString(locale, { year: 'numeric', month: 'long' })}
                       </td>
                       <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" rowSpan={3}>
-                        Total
+                        {t('common.total')}
                       </td>
                     </tr>
-                    
+
                     {/* Weekday row */}
                     <tr>
                       {monthDates.map((date, idx) => (
@@ -532,15 +495,17 @@ export default function NewSchedule() {
                   <tbody>
                     {employees.map((emp) => {
                       const empTotals = calculateEmployeeTotal(emp.id);
+                      // Thicker bottom border separates each employee row.
+                      const rowDivider = { borderBottom: '2px solid #4b5563' };
                       return (
                         <tr key={emp.id}>
-                          <td className="border border-gray-300 px-2 py-1">
+                          <td className="border border-gray-300 px-2 py-1" style={rowDivider}>
                             {emp.firstName}
                           </td>
-                          <td className="border border-gray-300 px-2 py-1">
+                          <td className="border border-gray-300 px-2 py-1" style={rowDivider}>
                             {emp.lastName}
                           </td>
-                          <td className="border border-gray-300 px-2 py-1 text-xs">
+                          <td className="border border-gray-300 px-2 py-1 text-xs" style={rowDivider}>
                             {emp.email.split('@')[0]}
                           </td>
                           {monthDates.map((date, idx) => {
@@ -548,11 +513,12 @@ export default function NewSchedule() {
                             const key = `${emp.id}_${day}`;
                             const shift = shifts[key];
                             const hasLeave = !!shift?.leave;
-                            const leaveInfo = hasLeave ? getLeaveType(shift.leave) : null;
+                            const leaveInfo = hasLeave ? getLeaveTypeByCode(shift.leave) : null;
                             const endTime = !hasLeave && shift?.start && shift?.hours ? calcEndTime(shift.start, shift.hours) : '';
                             const shiftValue = !hasLeave && shift?.start && shift?.hours ? `${shift.start}-${endTime}` : '';
+                            const cellBg = getCellBgColor(date);
                             return (
-                              <td key={idx} className="border border-gray-300 p-0" style={{ backgroundColor: getCellBgColor(date) }}>
+                              <td key={idx} className="border border-gray-300 p-0" style={{ backgroundColor: cellBg, ...rowDivider }}>
                                 <div className="flex flex-col items-center gap-0" style={{ minWidth: '44px' }}>
                                   {/* Leave type selector — disabled when hours/start are set */}
                                   <select
@@ -573,12 +539,14 @@ export default function NewSchedule() {
                                       appearance: 'none',
                                       textAlign: 'center',
                                       cursor: (shift?.start || shift?.hours) ? 'not-allowed' : 'pointer',
-                                      backgroundColor: leaveInfo ? leaveInfo.bg : 'transparent',
+                                      // Inherit the cell's date colour so holiday red / weekend tint stays visible
+                                      // when no leave is selected. (Browsers treat 'transparent' on <select> as opaque.)
+                                      backgroundColor: leaveInfo ? leaveInfo.bg : cellBg,
                                       color: leaveInfo ? leaveInfo.color : 'inherit',
                                       fontWeight: leaveInfo ? 700 : 400,
                                       opacity: (shift?.start || shift?.hours) ? 0.4 : 1,
                                     }}
-                                    title={leaveInfo ? leaveInfo.label : 'Leave type'}
+                                    title={leaveInfo ? leaveInfo.label : t('cell.leaveTitle')}
                                   >
                                     <option value="">—</option>
                                     {LEAVE_TYPES.map(lt => (
@@ -592,7 +560,7 @@ export default function NewSchedule() {
                                     disabled={hasLeave}
                                     className="w-full border-0 border-t border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     style={{ backgroundColor: getCellBgColor(date), fontSize: '10px', padding: '1px 0', appearance: 'none', textAlign: 'center', cursor: hasLeave ? 'not-allowed' : 'pointer', opacity: hasLeave ? 0.4 : 1 }}
-                                    title="Working hours"
+                                    title={t('cell.workingHours')}
                                   >
                                     <option value="">—</option>
                                     {getHourOptions(shift?.start || '').map(h => <option key={h} value={String(h)}>{h}h</option>)}
@@ -604,7 +572,7 @@ export default function NewSchedule() {
                                     disabled={hasLeave}
                                     className="w-full border-0 border-t border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     style={{ backgroundColor: getCellBgColor(date), fontSize: '10px', padding: '1px 0', appearance: 'none', textAlign: 'center', cursor: hasLeave ? 'not-allowed' : 'pointer', opacity: hasLeave ? 0.4 : 1 }}
-                                    title="Shift start"
+                                    title={t('cell.shiftStart')}
                                   >
                                     <option value="">—</option>
                                     {START_TIMES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -654,7 +622,7 @@ export default function NewSchedule() {
                     {/* Day totals */}
                     <tr className="bg-gray-100 font-semibold">
                       <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
-                        Total hours in day:
+                        {t('common.totalHoursInDay')}
                       </td>
                       {monthDates.map((_, idx) => {
                         const day = idx + 1;
@@ -676,20 +644,41 @@ export default function NewSchedule() {
 
             <div className="bg-white rounded-lg shadow p-6">
               <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
-                Notes / Comments
+                {t('common.notesField')}
               </label>
               <textarea
                 id="notes"
                 name="notes"
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Add any notes about this schedule..."
+                placeholder={t('common.notesPlaceholder')}
               />
             </div>
 
+            {closingCoverageWarnings.length > 0 && (
+              <div className="p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
+                <h3 className="font-semibold text-yellow-800 mb-2">
+                  {t('warn.closingTitle')}
+                </h3>
+                <p className="text-sm text-yellow-800 mb-1">
+                  {t('warn.closingBody')}
+                </p>
+                <ul className="text-sm text-yellow-700 list-disc ml-5">
+                  {closingCoverageWarnings.map(w => (
+                    <li key={w.day}>
+                      {w.date.toLocaleDateString(locale, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-yellow-700 mt-2">
+                  {t('warn.closingHint')}
+                </p>
+              </div>
+            )}
+
             {hasHourErrors && hasAnyAssignedShifts && (
               <div className="p-4 bg-red-50 border border-red-300 rounded-lg">
-                <h3 className="font-semibold text-red-700 mb-2">Hour validation errors:</h3>
+                <h3 className="font-semibold text-red-700 mb-2">{t('err.hourTitle')}</h3>
                 <ul className="text-sm text-red-600 space-y-1">
                   {employees.filter(emp => employeeHourErrors[emp.id]).map(emp => (
                     <li key={emp.id}>
@@ -698,7 +687,7 @@ export default function NewSchedule() {
                   ))}
                 </ul>
                 <p className="text-sm text-red-500 mt-2">
-                  Each employee's working hours must match the monthly norm of <strong>{monthNormHours}h</strong> to submit.
+                  {t('err.hourBody', { h: monthNormHours })}
                 </p>
               </div>
             )}
@@ -710,7 +699,7 @@ export default function NewSchedule() {
                 value="draft"
                 className="px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
               >
-                Save as Draft
+                {t('edit.saveDraft')}
               </button>
               <button
                 type="submit"
@@ -720,7 +709,7 @@ export default function NewSchedule() {
                 className={`px-6 py-2 text-white rounded-md ${!canSubmit ? 'opacity-50 cursor-not-allowed' : ''}`}
                 style={{ backgroundColor: 'var(--primary-color)' }}
               >
-                Submit for Approval
+                {t('edit.submitForApproval')}
               </button>
             </div>
           </Form>

@@ -7,6 +7,8 @@ import {
   LEAVE_TYPES, LEAVE_HOURS, MONTHLY_WORK_HOURS,
   getLeaveTypeByLabel, getCellColor, getCellBgColor, DAY_NAMES,
 } from '~/lib/schedule-constants';
+import { useT, useLang, dayNamesFor, localeFor } from '~/lib/i18n';
+import { LanguageToggle } from '~/components/LanguageToggle';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
@@ -53,7 +55,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return data({ user, schedules });
 }
 
-function ScheduleGrid({ schedule, user }: { schedule: any; user: any }) {
+function ScheduleGrid({ schedule, user, t, lang }: { schedule: any; user: any; t: (k: string, p?: any) => string; lang: 'en' | 'lv' }) {
   const weekStart = new Date(schedule.weekStart);
   const year = weekStart.getFullYear();
   const month = weekStart.getMonth();
@@ -121,19 +123,22 @@ function ScheduleGrid({ schedule, user }: { schedule: any; user: any }) {
 
   const isCurrentUser = (empId: string) => user.role === 'EMPLOYEE' && empId === user.id;
 
+  const dayNames = dayNamesFor(lang);
+  const locale = localeFor(lang);
+
   return (
     <div>
       <div className="mb-3 text-sm text-gray-600">
-        <span><strong>Store:</strong> {schedule.store.name}</span>
-        <span className="ml-4"><strong>Created by:</strong> {schedule.createdBy.firstName} {schedule.createdBy.lastName}</span>
+        <span><strong>{t('common.store')}:</strong> {schedule.store.name}</span>
+        <span className="ml-4"><strong>{t('common.createdBy')}:</strong> {schedule.createdBy.firstName} {schedule.createdBy.lastName}</span>
         {monthNormHours > 0 && (
-          <span className="ml-4"><strong>Monthly norm:</strong> {monthNormHours}h</span>
+          <span className="ml-4"><strong>{t('common.monthlyNorm')}:</strong> {monthNormHours}h</span>
         )}
       </div>
 
       {schedule.notes && (
         <div className="mb-3 p-3 bg-gray-50 rounded text-sm text-gray-600">
-          <strong>Notes:</strong> {schedule.notes}
+          <strong>{t('common.notes')}:</strong> {schedule.notes}
         </div>
       )}
 
@@ -141,18 +146,18 @@ function ScheduleGrid({ schedule, user }: { schedule: any; user: any }) {
         <table className="border-collapse" style={{ fontSize: '12px', minWidth: '100%' }}>
           <thead>
             <tr>
-              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>Vārds</td>
-              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>Uzvārds</td>
-              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>P.k.</td>
+              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>{t('common.firstName')}</td>
+              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>{t('common.lastName')}</td>
+              <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>{t('common.username')}</td>
               <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" colSpan={monthDates.length}>
-                Period: {monthDates[0]?.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                {t('common.period')}: {monthDates[0]?.toLocaleDateString(locale, { year: 'numeric', month: 'long' })}
               </td>
-              <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" rowSpan={3}>Total</td>
+              <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" rowSpan={3}>{t('common.total')}</td>
             </tr>
             <tr>
               {monthDates.map((date, idx) => (
                 <td key={idx} className="border border-gray-300 px-1 py-1 text-center text-xs" style={{ backgroundColor: getCellBgColor(date) }}>
-                  {DAY_NAMES[date.getDay()]}
+                  {dayNames[date.getDay()]}
                 </td>
               ))}
             </tr>
@@ -211,7 +216,7 @@ function ScheduleGrid({ schedule, user }: { schedule: any; user: any }) {
             })}
 
             <tr className="bg-gray-100 font-semibold">
-              <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">Total hours in day:</td>
+              <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">{t('common.totalHoursInDay')}</td>
               {monthDates.map((_, idx) => {
                 const total = calcDayTotals(idx + 1);
                 return (
@@ -233,6 +238,9 @@ function ScheduleGrid({ schedule, user }: { schedule: any; user: any }) {
 
 export default function Schedules() {
   const { user, schedules } = useLoaderData<typeof loader>();
+  const t = useT();
+  const lang = useLang();
+  const locale = localeFor(lang);
 
   const getStatusStyle = (status: string): { [key: string]: string } => {
     switch (status) {
@@ -243,32 +251,28 @@ export default function Schedules() {
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    if (status === 'APPROVED') return 'ACCEPTED';
-    return status;
-  };
-
   const formatTimestamp = (dateStr: string) => {
     const d = new Date(dateStr);
-    return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+    return `${d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })} ${d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ overflowX: 'hidden' }}>
       <header className="bdheader">
-        <div className="bdlogo">
-          <span className="text-white text-xl font-bold">Schedule Manager</span>
+        <div className="bdlogo" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <LanguageToggle />
+          <span className="text-white text-xl font-bold">{t('common.appTitle')}</span>
         </div>
         <div className="userNameContainer">
           <span className="userName">{user.firstName} {user.lastName}</span>
-          <span className="text-white text-sm">({user.role})</span>
+          <span className="text-white text-sm">({t(`role.${user.role}`)})</span>
           <Form method="post" action="/logout">
             <button
               type="submit"
               className="ml-4 px-3 py-1 bg-white text-sm rounded hover:bg-gray-100"
               style={{ color: 'var(--primary-color)' }}
             >
-              Logout
+              {t('common.logout')}
             </button>
           </Form>
         </div>
@@ -278,18 +282,18 @@ export default function Schedules() {
         <div style={{ maxWidth: '100%', overflow: 'hidden' }}>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold" style={{ color: 'var(--primary-color)' }}>
-              {user.role === 'EMPLOYEE' ? 'My Schedules' : 'Store Schedules'}
+              {user.role === 'EMPLOYEE' ? t('schedules.mySchedules') : t('schedules.storeSchedules')}
             </h2>
             {user.role === 'MANAGER' && (
               <Link to="/schedules/new" className="roundButtonMenu">
-                <i className="fas fa-plus mr-2"></i> New Schedule
+                <i className="fas fa-plus mr-2"></i> {t('schedules.newSchedule')}
               </Link>
             )}
           </div>
 
           <div className="space-y-8">
             {schedules.length === 0 ? (
-              <p className="text-gray-500 text-center">No schedules available</p>
+              <p className="text-gray-500 text-center">{t('schedules.empty')}</p>
             ) : (
               schedules.map((schedule: any) => {
                 const canEdit = user.role === 'MANAGER' && ['DRAFT', 'PENDING', 'REJECTED', 'APPROVED'].includes(schedule.status);
@@ -303,7 +307,7 @@ export default function Schedules() {
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-lg font-semibold">
-                          {new Date(schedule.weekStart).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                          {new Date(schedule.weekStart).toLocaleDateString(locale, { year: 'numeric', month: 'long' })}
                         </h3>
                       </div>
                       <div className="flex items-center gap-3">
@@ -313,23 +317,23 @@ export default function Schedules() {
                             className="px-4 py-2 text-sm font-medium rounded-md text-white"
                             style={{ backgroundColor: 'var(--primary-color)' }}
                           >
-                            <i className="fas fa-edit mr-1"></i> Edit
+                            <i className="fas fa-edit mr-1"></i> {t('schedules.edit')}
                           </Link>
                         )}
                         <div className="text-right">
                           <span className="px-3 py-1 rounded-full text-xs font-semibold" style={getStatusStyle(schedule.status)}>
-                            {getStatusLabel(schedule.status)}
+                            {t(`status.${schedule.status}`)}
                           </span>
                           {submittedAt && (
                             <div className="text-xs text-gray-500 mt-1">
-                              Submitted: {submittedAt}
+                              {t('common.submitted')}: {submittedAt}
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <ScheduleGrid schedule={schedule} user={user} />
+                    <ScheduleGrid schedule={schedule} user={user} t={t} lang={lang} />
                   </div>
                 );
               })

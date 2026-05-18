@@ -42,12 +42,15 @@ type Pages = {
   "/notifications": {
     params: {};
   };
+  "/set-language": {
+    params: {};
+  };
 };
 
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/login" | "/logout" | "/schedules" | "/schedules/new" | "/schedules/:id" | "/schedules/:id/edit" | "/approvals" | "/notifications";
+    page: "/" | "/login" | "/logout" | "/schedules" | "/schedules/new" | "/schedules/:id" | "/schedules/:id/edit" | "/approvals" | "/notifications" | "/set-language";
   };
   "routes/_index.tsx": {
     id: "routes/_index";
@@ -85,6 +88,10 @@ type RouteFiles = {
     id: "routes/notifications";
     page: "/notifications";
   };
+  "routes/set-language.tsx": {
+    id: "routes/set-language";
+    page: "/set-language";
+  };
 };
 
 type RouteModules = {
@@ -98,4 +105,5 @@ type RouteModules = {
   "routes/schedules.$id_.edit": typeof import("./app/routes/schedules.$id_.edit.tsx");
   "routes/approvals": typeof import("./app/routes/approvals.tsx");
   "routes/notifications": typeof import("./app/routes/notifications.tsx");
+  "routes/set-language": typeof import("./app/routes/set-language.tsx");
 };

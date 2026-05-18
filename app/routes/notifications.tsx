@@ -3,6 +3,8 @@ import { useLoaderData, Form, Link } from 'react-router';
 import { requireUserId } from '~/lib/session.server';
 import { getCurrentUser } from '~/lib/auth.server';
 import { prisma } from '~/lib/db.server';
+import { useT, useLang, localeFor } from '~/lib/i18n';
+import { LanguageToggle } from '~/components/LanguageToggle';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
@@ -52,18 +54,22 @@ export async function action({ request }: ActionFunctionArgs) {
 
 export default function Notifications() {
   const { user, notifications } = useLoaderData<typeof loader>();
+  const t = useT();
+  const lang = useLang();
+  const locale = localeFor(lang);
   const unreadCount = notifications.filter((n: any) => !n.read).length;
 
   const formatTimestamp = (dateStr: string) => {
     const d = new Date(dateStr);
-    return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+    return `${d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })} ${d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bdheader">
-        <div className="bdlogo">
-          <span className="text-white text-xl font-bold">Schedule Manager</span>
+        <div className="bdlogo" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <LanguageToggle />
+          <span className="text-white text-xl font-bold">{t('common.appTitle')}</span>
         </div>
         <div className="userNameContainer">
           <span className="userName">{user.firstName} {user.lastName}</span>
@@ -73,7 +79,7 @@ export default function Notifications() {
               className="ml-4 px-3 py-1 bg-white text-sm rounded hover:bg-gray-100"
               style={{ color: 'var(--primary-color)' }}
             >
-              Logout
+              {t('common.logout')}
             </button>
           </Form>
         </div>
@@ -84,10 +90,10 @@ export default function Notifications() {
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-4">
               <Link to="/schedules" className="text-sm hover:underline" style={{ color: 'var(--primary-color)' }}>
-                &larr; Back to Schedules
+                {t('common.backToSchedules')}
               </Link>
               <h2 className="text-2xl font-bold" style={{ color: 'var(--primary-color)' }}>
-                Notifications {unreadCount > 0 && <span className="text-sm font-normal">({unreadCount} unread)</span>}
+                {t('notif.heading')} {unreadCount > 0 && <span className="text-sm font-normal">{t('notif.unreadSuffix', { n: unreadCount })}</span>}
               </h2>
             </div>
             {unreadCount > 0 && (
@@ -98,14 +104,14 @@ export default function Notifications() {
                   value="markAllRead"
                   className="text-sm px-3 py-1 rounded border border-gray-300 hover:bg-gray-100"
                 >
-                  Mark all read
+                  {t('notif.markAllRead')}
                 </button>
               </Form>
             )}
           </div>
 
           {notifications.length === 0 ? (
-            <p className="text-gray-500 text-center">No notifications</p>
+            <p className="text-gray-500 text-center">{t('notif.empty')}</p>
           ) : (
             <div className="space-y-3">
               {notifications.map((notif: any) => {
@@ -148,7 +154,7 @@ export default function Notifications() {
                               value="markRead"
                               className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50"
                             >
-                              Mark read
+                              {t('notif.markRead')}
                             </button>
                           </Form>
                         )}
@@ -159,7 +165,7 @@ export default function Notifications() {
                             name="action"
                             value="dismiss"
                             className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50"
-                            title="Dismiss"
+                            title={t('notif.dismiss')}
                           >
                             &times;
                           </button>
@@ -169,7 +175,7 @@ export default function Notifications() {
                             to={`/schedules/${notif.scheduleId}`}
                             className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50"
                           >
-                            View
+                            {t('notif.view')}
                           </Link>
                         )}
                       </div>

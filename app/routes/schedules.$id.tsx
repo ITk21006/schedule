@@ -7,6 +7,8 @@ import {
   LEAVE_TYPES, LEAVE_HOURS, MONTHLY_WORK_HOURS,
   getLeaveTypeByLabel, getCellColor, getCellBgColor, DAY_NAMES,
 } from '~/lib/schedule-constants';
+import { useT, useLang, dayNamesFor, localeFor } from '~/lib/i18n';
+import { LanguageToggle } from '~/components/LanguageToggle';
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
@@ -41,6 +43,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
 export default function ScheduleView() {
   const { user, schedule } = useLoaderData<typeof loader>();
+  const t = useT();
+  const lang = useLang();
+  const locale = localeFor(lang);
+  const dayNames = dayNamesFor(lang);
 
   // Derive month range from schedule
   const weekStart = new Date(schedule.weekStart);
@@ -127,11 +133,6 @@ export default function ScheduleView() {
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    if (status === 'APPROVED') return 'ACCEPTED';
-    return status;
-  };
-
   // Submission timestamp (approval createdAt for PENDING, or schedule updatedAt)
   const pendingApproval = schedule.approvals?.[0];
   const submittedAt = schedule.status === 'PENDING' && pendingApproval
@@ -143,8 +144,9 @@ export default function ScheduleView() {
   return (
     <div className="min-h-screen bg-gray-50" style={{ overflowX: 'hidden' }}>
       <header className="bdheader">
-        <div className="bdlogo">
-          <span className="text-white text-xl font-bold">Schedule Manager</span>
+        <div className="bdlogo" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <LanguageToggle />
+          <span className="text-white text-xl font-bold">{t('common.appTitle')}</span>
         </div>
         <div className="userNameContainer">
           <span className="userName">{user.firstName} {user.lastName}</span>
@@ -154,7 +156,7 @@ export default function ScheduleView() {
               className="ml-4 px-3 py-1 bg-white text-sm rounded hover:bg-gray-100"
               style={{ color: 'var(--primary-color)' }}
             >
-              Logout
+              {t('common.logout')}
             </button>
           </Form>
         </div>
@@ -164,13 +166,13 @@ export default function ScheduleView() {
         <div style={{ maxWidth: '100%', overflow: 'hidden' }}>
           <div className="flex items-center gap-4 mb-2">
             <Link to="/schedules" className="text-sm hover:underline" style={{ color: 'var(--primary-color)' }}>
-              &larr; Back to Schedules
+              {t('common.backToSchedules')}
             </Link>
           </div>
 
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold" style={{ color: 'var(--primary-color)' }}>
-              Schedule: {monthDates[0]?.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+              {t('view.scheduleHeading', { month: monthDates[0]?.toLocaleDateString(locale, { year: 'numeric', month: 'long' }) || '' })}
             </h2>
             <div className="flex items-center gap-3">
               {canEdit && (
@@ -179,16 +181,16 @@ export default function ScheduleView() {
                   className="px-4 py-2 text-white rounded-md text-sm font-medium hover:opacity-90"
                   style={{ backgroundColor: 'var(--primary-color)' }}
                 >
-                  <i className="fas fa-edit mr-1"></i> Edit Schedule
+                  <i className="fas fa-edit mr-1"></i> {t('view.editSchedule')}
                 </Link>
               )}
               <div className="text-right">
                 <span className="px-3 py-1 rounded-full text-xs font-semibold" style={getStatusStyle(schedule.status)}>
-                  {getStatusLabel(schedule.status)}
+                  {t(`status.${schedule.status}`)}
                 </span>
                 {submittedAt && (
                   <div className="text-xs text-gray-500 mt-1">
-                    Submitted: {submittedAt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} {submittedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    {t('common.submitted')}: {submittedAt.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })} {submittedAt.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 )}
               </div>
@@ -197,18 +199,18 @@ export default function ScheduleView() {
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="mb-4 text-sm text-gray-600">
-              <span><strong>Store:</strong> {schedule.store.name}</span>
-              <span className="ml-4"><strong>Created by:</strong> {schedule.createdBy.firstName} {schedule.createdBy.lastName}</span>
+              <span><strong>{t('common.store')}:</strong> {schedule.store.name}</span>
+              <span className="ml-4"><strong>{t('common.createdBy')}:</strong> {schedule.createdBy.firstName} {schedule.createdBy.lastName}</span>
               {monthNormHours > 0 && (
-                <span className="ml-4"><strong>Monthly norm:</strong> {monthNormHours}h per employee</span>
+                <span className="ml-4"><strong>{t('common.monthlyNorm')}:</strong> {monthNormHours}h</span>
               )}
             </div>
 
             {/* Legend */}
             <div className="mb-4 flex flex-wrap gap-3 text-xs">
-              <span><span className="inline-block w-4 h-3 bg-gray-50 border border-gray-300 align-middle mr-1"></span> Weekday</span>
-              <span><span className="inline-block w-4 h-3 bg-blue-50 border border-gray-300 align-middle mr-1"></span> Weekend</span>
-              <span><span className="inline-block w-4 h-3 bg-red-100 border border-gray-300 align-middle mr-1"></span> Holiday</span>
+              <span><span className="inline-block w-4 h-3 bg-gray-50 border border-gray-300 align-middle mr-1"></span> {t('common.weekday')}</span>
+              <span><span className="inline-block w-4 h-3 bg-blue-50 border border-gray-300 align-middle mr-1"></span> {t('common.weekend')}</span>
+              <span><span className="inline-block w-4 h-3 bg-red-100 border border-gray-300 align-middle mr-1"></span> {t('common.holiday')}</span>
               {LEAVE_TYPES.map(lt => (
                 <span key={lt.code} className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-semibold" style={{ backgroundColor: lt.bg, color: lt.color }}>
                   {lt.code} — {lt.label}
@@ -220,18 +222,18 @@ export default function ScheduleView() {
               <table className="border-collapse" style={{ fontSize: '12px', minWidth: '100%' }}>
                 <thead>
                   <tr>
-                    <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>Vārds</td>
-                    <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>Uzvārds</td>
-                    <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>P.k.</td>
+                    <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>{t('common.firstName')}</td>
+                    <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>{t('common.lastName')}</td>
+                    <td className="border border-gray-300 px-2 py-1 font-semibold bg-gray-100" rowSpan={3}>{t('common.username')}</td>
                     <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" colSpan={monthDates.length}>
-                      Period: {monthDates[0]?.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                      {t('common.period')}: {monthDates[0]?.toLocaleDateString(locale, { year: 'numeric', month: 'long' })}
                     </td>
-                    <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" rowSpan={3}>Total</td>
+                    <td className="border border-gray-300 px-2 py-1 text-center bg-gray-100" rowSpan={3}>{t('common.total')}</td>
                   </tr>
                   <tr>
                     {monthDates.map((date, idx) => (
                       <td key={idx} className="border border-gray-300 px-1 py-1 text-center text-xs" style={{ backgroundColor: getCellBgColor(date) }}>
-                        {DAY_NAMES[date.getDay()]}
+                        {dayNames[date.getDay()]}
                       </td>
                     ))}
                   </tr>
@@ -249,18 +251,20 @@ export default function ScheduleView() {
                     const hoursDiff = monthNormHours ? empTotals.working - monthNormHours : 0;
                     const isMatch = monthNormHours > 0 && empTotals.working === monthNormHours;
                     const isOff = monthNormHours > 0 && empTotals.working > 0 && empTotals.working !== monthNormHours;
+                    // Thicker bottom border separates each employee row.
+                    const rowDivider = { borderBottom: '2px solid #4b5563' };
                     return (
                       <tr key={emp.id}>
-                        <td className="border border-gray-300 px-2 py-1">{emp.firstName}</td>
-                        <td className="border border-gray-300 px-2 py-1">{emp.lastName}</td>
-                        <td className="border border-gray-300 px-2 py-1 text-xs">{emp.email.split('@')[0]}</td>
+                        <td className="border border-gray-300 px-2 py-1" style={rowDivider}>{emp.firstName}</td>
+                        <td className="border border-gray-300 px-2 py-1" style={rowDivider}>{emp.lastName}</td>
+                        <td className="border border-gray-300 px-2 py-1 text-xs" style={rowDivider}>{emp.email.split('@')[0]}</td>
                         {monthDates.map((date, idx) => {
                           const day = idx + 1;
                           const entry = entryLookup.get(`${emp.id}_${day}`);
                           const leaveType = entry ? getLeaveTypeByLabel(entry.shiftType) : null;
 
                           return (
-                            <td key={idx} className="border border-gray-300 p-0 text-center" style={{ backgroundColor: getCellBgColor(date), minWidth: '44px' }}>
+                            <td key={idx} className="border border-gray-300 p-0 text-center" style={{ backgroundColor: getCellBgColor(date), minWidth: '44px', ...rowDivider }}>
                               {entry ? (
                                 leaveType ? (
                                   <div
@@ -283,6 +287,7 @@ export default function ScheduleView() {
                           );
                         })}
                         <td className={`border border-gray-300 px-2 py-1 text-center font-semibold ${isOff ? 'bg-red-100 text-red-700' : isMatch ? 'bg-green-100 text-green-700' : 'bg-yellow-50'}`}
+                          style={rowDivider}
                           title={monthNormHours ? `Norm: ${monthNormHours}h` : ''}
                         >
                           {empTotals.working > 0 ? (
@@ -300,7 +305,7 @@ export default function ScheduleView() {
 
                   {/* Day totals */}
                   <tr className="bg-gray-100 font-semibold">
-                    <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">Total hours in day:</td>
+                    <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">{t('common.totalHoursInDay')}</td>
                     {monthDates.map((_, idx) => {
                       const dayTotals = calcDayTotals(idx + 1);
                       return (
@@ -321,7 +326,7 @@ export default function ScheduleView() {
           {/* Notes section */}
           {schedule.notes && (
             <div className="bg-white rounded-lg shadow p-6 mt-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Notes</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">{t('common.notes')}</h3>
               <p className="text-sm text-gray-600 whitespace-pre-wrap">{schedule.notes}</p>
             </div>
           )}

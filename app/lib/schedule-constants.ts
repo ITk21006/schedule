@@ -34,56 +34,81 @@ export const MONTHLY_WORK_HOURS: { [key: string]: number } = {
   '2026-12': 158,
 };
 
-export const HOLIDAYS_2026: string[] = [
-  '2026-01-01',
-  '2026-04-03',
-  '2026-04-05',
-  '2026-04-06',
-  '2026-05-01',
-  '2026-05-04',
-  '2026-06-23',
-  '2026-06-24',
-  '2026-11-18',
-  '2026-12-24',
-  '2026-12-25',
-  '2026-12-26',
-  '2026-12-31',
+// Days the shopping center is FULLY CLOSED — no work scheduled.
+// In practice the centre only closes on New Year's Day and Jāņi (Midsummer).
+// Other national holidays are visually flagged but the centre stays open.
+export const STORE_CLOSED_DAYS: string[] = [
+  '2026-01-01', // New Year's Day
+  '2026-06-23', // Līgo (Midsummer Eve)
+  '2026-06-24', // Jāņi (Midsummer Day)
 ];
 
-export const PRE_HOLIDAY_DAYS: string[] = [
-  '2026-04-02',
-  '2026-04-30',
-  '2026-06-22',
-  '2026-11-17',
-  '2026-12-23',
-  '2026-12-30',
-];
+// Latvia 2026 official public holidays (svētku dienas / brīvdienas) plus the
+// commemorative days that show up in red on the national work-day calendar.
+// Source: https://www.tavirekini.lv/noderigi/2026-gada-darba-dienu-kalendars
+//
+// These are highlighted red in the schedule UI for visibility, but unlike
+// STORE_CLOSED_DAYS they do not block scheduling — most retail centres still
+// operate (with holiday-rate pay) on these dates. The Latvian monthly
+// working-hours norm in MONTHLY_WORK_HOURS already accounts for these days.
+export const PUBLIC_HOLIDAYS_2026: { [date: string]: string } = {
+  '2026-01-01': 'Jaunais gads',
+  '2026-04-03': 'Lielā Piektdiena',
+  '2026-04-05': 'Lieldienas',
+  '2026-04-06': 'Otrās Lieldienas',
+  '2026-05-01': 'Darba svētki',
+  '2026-05-04': 'Latvijas Republikas Neatkarības atjaunošanas diena',
+  '2026-05-10': 'Mātes diena',
+  '2026-05-24': 'Vasarsvētki',
+  '2026-06-23': 'Līgo',
+  '2026-06-24': 'Jāņu diena',
+  '2026-11-18': 'Latvijas Republikas proklamēšanas diena',
+  '2026-12-24': 'Ziemassvētku vakars',
+  '2026-12-25': 'Pirmie Ziemassvētki',
+  '2026-12-26': 'Otrie Ziemassvētki',
+  '2026-12-31': 'Vecgada vakars',
+};
+
+// Days the shopping center is open with shortened hours. Rare — leave empty unless
+// the centre announces shortened hours for a specific date.
+export const STORE_SHORTENED_DAYS: string[] = [];
 
 export function dateToKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export function isHoliday(date: Date): boolean {
-  return HOLIDAYS_2026.includes(dateToKey(date));
+export function isStoreClosed(date: Date): boolean {
+  return STORE_CLOSED_DAYS.includes(dateToKey(date));
 }
 
-export function isPreHoliday(date: Date): boolean {
-  return PRE_HOLIDAY_DAYS.includes(dateToKey(date));
+export function isStoreShortened(date: Date): boolean {
+  return STORE_SHORTENED_DAYS.includes(dateToKey(date));
+}
+
+export function isPublicHoliday(date: Date): boolean {
+  return dateToKey(date) in PUBLIC_HOLIDAYS_2026;
+}
+
+export function getPublicHolidayName(date: Date): string | undefined {
+  return PUBLIC_HOLIDAYS_2026[dateToKey(date)];
 }
 
 export function getCellColor(date: Date): string {
-  if (isHoliday(date)) return 'bg-red-100';
+  if (isStoreClosed(date) || isPublicHoliday(date)) return 'bg-red-100';
+  if (isStoreShortened(date)) return 'bg-amber-50';
   const day = date.getDay();
   if (day === 0 || day === 6) return 'bg-blue-50';
   return 'bg-gray-50';
 }
 
 export function getCellBgColor(date: Date): string {
-  if (isHoliday(date)) return '#fee2e2';       // red-100
+  // Public holidays (incl. store closures) win first — they overlay weekends.
+  if (isStoreClosed(date) || isPublicHoliday(date)) return '#fee2e2'; // red-100
+  if (isStoreShortened(date)) return '#fef3c7';                       // amber-100
   const day = date.getDay();
-  if (day === 6) return '#cbd5e1';              // slate-300 – Saturday
-  if (day === 0) return '#b0bec5';              // darker blue-gray – Sunday
-  return '#f9fafb';                             // gray-50 – weekday
+  if (day === 6) return '#cbd5e1';                                    // slate-300 – Saturday
+  if (day === 0) return '#b0bec5';                                    // darker blue-gray – Sunday
+  return '#f9fafb';                                                   // gray-50 – weekday
 }
 
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

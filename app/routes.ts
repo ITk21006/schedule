@@ -10,4 +10,5 @@ export default [
   route("schedules/:id/edit", "routes/schedules.$id_.edit.tsx"),
   route("approvals", "routes/approvals.tsx"),
   route("notifications", "routes/notifications.tsx"),
+  route("set-language", "routes/set-language.tsx"),
 ] satisfies RouteConfig;
